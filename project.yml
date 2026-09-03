@@ -1,0 +1,36 @@
+name: CreditCardManager
+options:
+  bundleIdPrefix: com.example
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+  minimumXcodeGenVersion: "2.30"
+settings:
+  base:
+    PRODUCT_BUNDLE_IDENTIFIER: com.example.CreditCardManager
+    PRODUCT_NAME: CreditCardManager
+    SWIFT_VERSION: "5.9"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    ENABLE_PREVIEWS: true
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  CreditCardManager:
+    type: application
+    platform: iOS
+    sources:
+      - path: .
+        excludes:
+          - README.md
+          - project.yml
+          - CreditCardManager.entitlements
+    info:
+      path: CreditCardManager-Info.plist
+      properties:
+        CFBundleDisplayName: 信用卡账单
+        UILaunchScreen:
+          UILaunchScreenGeneration: true
+        NSFaceIDUsageDescription: "用于应用锁，保护您的账单隐私"
+    entitlements: CreditCardManager.entitlements

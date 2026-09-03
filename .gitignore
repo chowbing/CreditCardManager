@@ -1,0 +1,15 @@
+# Xcode / XcodeGen 生成物（靠 xcodegen generate 重建，不提交）
+*.xcodeproj
+*.xcworkspace
+build/
+DerivedData/
+
+# 打包中间产物
+Payload/
+*.ipa
+
+# 本地环境
+.workbuddy/
+
+# OS
+.DS_Store
