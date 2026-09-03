@@ -63,7 +63,16 @@ jobs:
           chmod +x build-jailed.sh
           ./build-jailed.sh
 
+      - name: Upload build.log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CreditCardManager-buildlog
+          path: build.log
+          if-no-files-found: ignore
+
       - name: Upload IPA artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: CreditCardManager-IPA
