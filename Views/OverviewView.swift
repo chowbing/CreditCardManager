@@ -70,11 +70,10 @@ struct OverviewView: View {
                             .padding()
                     }
                 }
-                .padding()
-            }
-            .navigationTitle("概览")
+            .padding()
         }
     }
+}
 }
 
 private struct SectionCard<Content: View>: View {
@@ -146,13 +145,6 @@ struct RepaymentOverviewView: View {
         "信用卡账单 \(yearMonth.month)月"
     }
 
-    /// 合计：所有卡片本月账单之和（无账单计 0）
-    private var totalAmount: Decimal {
-        cards.reduce(Decimal(0)) { sum, card in
-            sum + (statement(for: card)?.total ?? Decimal(0))
-        }
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(monthTitle)
@@ -182,14 +174,6 @@ struct RepaymentOverviewView: View {
                 }
                 .background(Color(.secondarySystemBackground))
                 .clipShape(RoundedRectangle(cornerRadius: 12))
-
-                HStack {
-                    Text("合计").font(.subheadline.bold())
-                    Spacer()
-                    Text(totalAmount.yuanString)
-                        .font(.title3.bold())
-                }
-                .padding(.horizontal, 4)
             }
         }
     }
