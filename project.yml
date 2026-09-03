@@ -41,4 +41,5 @@ targets:
         UILaunchScreen:
           UILaunchScreenGeneration: true
         NSFaceIDUsageDescription: "用于应用锁，保护您的账单隐私"
-    entitlements: CreditCardManager.entitlements
+    entitlements:
+      path: CreditCardManager.entitlements
