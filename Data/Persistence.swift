@@ -69,7 +69,6 @@ struct PersistenceController {
         let cardEntity = NSEntityDescription()
         cardEntity.name = "CreditCard"
         cardEntity.managedObjectClassName = String(describing: CreditCard.self)
-        cardEntity.uniquenessConstraints = [["id"]]
 
         let cardAttrs: [NSAttributeDescription] = [
             attribute("id", .UUIDAttributeType, optional: false),
@@ -91,7 +90,6 @@ struct PersistenceController {
         let stmtEntity = NSEntityDescription()
         stmtEntity.name = "Statement"
         stmtEntity.managedObjectClassName = String(describing: Statement.self)
-        stmtEntity.uniquenessConstraints = [["id"]]
 
         let stmtAttrs: [NSAttributeDescription] = [
             attribute("id", .UUIDAttributeType, optional: false),
