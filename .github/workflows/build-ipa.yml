@@ -1,12 +1,15 @@
 name: Build Unsigned IPA (Jailbroken)
 
 # 越狱设备专用：云端 macOS 自动编译「无签名 IPA」，无需 Apple 账号 / 证书。
-# 触发：push 到 main/master，或在 Actions 页手动 Run workflow。
-# 产物：Artifacts 里的 CreditCardManager-IPA（下载后装到越狱设备）。
 on:
   workflow_dispatch:
   push:
     branches: [ main, master ]
+
+# Homebrew 4.4+ tap trust 校验会让 brew install xcodegen 失败，关掉。
+env:
+  HOMEBREW_NO_AUTO_UPDATE: "1"
+  HOMEBREW_NO_REQUIRE_TAP_TRUST: "1"
 
 jobs:
   build:
@@ -25,6 +28,19 @@ jobs:
           xcrun --show-sdk-path --sdk iphoneos || true
           which brew && brew --version || true
 
+      - name: Clean legacy taps
+        # 移除 Homebrew 4.x 视为未受信任的遗留 tap。
+        run: |
+          set -x
+          for t in aws/tap azure/functions homebrew/cask-versions; do
+            if brew tap | grep -q "^${t}$"; then
+              echo "Untapping $t ..."
+              brew untap "$t" || true
+            fi
+          done
+          echo "--- remaining taps ---"
+          brew tap || true
+
       - name: Ensure XcodeGen
         run: |
           set -x
@@ -39,6 +55,7 @@ jobs:
         run: |
           set -x
           xcodegen generate
+          ls -la CreditCardManager.xcodeproj || true
 
       - name: Build unsigned IPA
         run: |
@@ -51,3 +68,4 @@ jobs:
         with:
           name: CreditCardManager-IPA
           path: CreditCardManager.ipa
+          if-no-files-found: error
