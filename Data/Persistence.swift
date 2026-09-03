@@ -13,11 +13,10 @@ struct PersistenceController {
 
     let container: NSPersistentContainer
 
-    /// 免费 Apple ID（个人团队）真机调试开关。
-    /// - `false`：关闭 CloudKit，使用纯本地 Core Data。个人团队不支持 iCloud 能力，开启会导致签名/运行失败。
-    /// - `true`：接入 CloudKit 私有库（需付费开发者账号 + 已配置容器）。正式打包时保持此值。
-    /// 切换方式：免费账号调试时把此行改为 `= false`；付费打包/同步时改回 `= true`。
-    static var enableCloudKit = true
+    /// CloudKit 同步开关。
+    /// - `false`（当前默认）：纯本地 Core Data。适用于越狱无签名 IPA、免费 Apple ID 调试、以及不需要跨设备同步的场景。
+    /// - `true`：接入 CloudKit 私有库（需付费开发者账号 + 已配置 iCloud 容器 + 真机登录 iCloud）。需要多设备同步时改回此值。
+    static var enableCloudKit = false
 
     init() {
         let model = Self.buildModel()
