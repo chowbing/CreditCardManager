@@ -59,12 +59,14 @@ jobs:
 
       - name: Build unsigned IPA
         run: |
-          set -x
+          set -x -o pipefail
           chmod +x build-jailed.sh
-          ./build-jailed.sh
+          # 用 tee 把脚本全流程输出（含 xcodebuild 与打包步骤）写入 build.log，
+          # 同时 pipefail 保证脚本的非零退出码能正确传导给本步骤。
+          ./build-jailed.sh 2>&1 | tee build.log
 
-      - name: Upload build.log on failure
-        if: failure()
+      - name: Upload build.log (always)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: CreditCardManager-buildlog
