@@ -30,8 +30,6 @@ xcodebuild \
   -sdk iphoneos \
   -destination 'generic/platform=iOS' \
   -derivedDataPath build \
-  -arch arm64 \
-  ONLY_ACTIVE_ARCH=YES \
   ENABLE_BITCODE=NO \
   CODE_SIGNING_REQUIRED=NO \
   CODE_SIGN_IDENTITY="" \
