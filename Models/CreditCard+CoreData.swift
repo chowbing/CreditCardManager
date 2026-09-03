@@ -1,4 +1,5 @@
 import CoreData
+import SwiftUI
 
 @objc(CreditCard)
 public class CreditCard: NSManagedObject {}
