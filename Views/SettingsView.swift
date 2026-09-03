@@ -82,6 +82,12 @@ struct SettingsView: View {
     }
 
     private func checkCloudKit() {
+        // 越狱无签名 IPA 未配置 iCloud entitlements，调用 CloudKit API 会直接崩溃。
+        // 仅在明确开启 CloudKit 时才探测；否则跳过并显示本地存储状态。
+        guard PersistenceController.enableCloudKit else {
+            icloudStatus = "未开启（本地存储）"
+            return
+        }
         CKContainer(identifier: PersistenceController.cloudKitContainerID)
             .accountStatus { status, _ in
                 DispatchQueue.main.async {
