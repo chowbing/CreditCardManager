@@ -33,7 +33,7 @@ targets:
           - .github
           - build
           - Payload
-          - *.ipa
+          - "*.ipa"
     info:
       path: CreditCardManager-Info.plist
       properties:
