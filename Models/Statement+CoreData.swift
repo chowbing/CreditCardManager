@@ -51,3 +51,8 @@ extension Statement {
         statusRaw = Int32(effectiveStatus.rawValue)
     }
 }
+
+// MARK: - SwiftUI ForEach 需要的 Identifiable
+// NSManagedObject 在 iOS 16 SDK 不会自动 Identifiable，
+// 这里基于 objectID 给一个稳定的 id（跨刷新不变），避免 ForEach 报 “doesn't conform to Identifiable”。
+extension Statement: Identifiable {}

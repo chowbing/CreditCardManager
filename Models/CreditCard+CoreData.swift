@@ -41,3 +41,7 @@ extension CreditCard {
         creditLimit?.decimalValue ?? 0
     }
 }
+
+
+// MARK: - SwiftUI ForEach 需要的 Identifiable
+extension CreditCard: Identifiable {}
