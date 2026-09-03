@@ -4,7 +4,6 @@ options:
   deploymentTarget:
     iOS: "16.0"
   createIntermediateGroups: true
-  minimumXcodeGenVersion: "2.30"
 settings:
   base:
     PRODUCT_BUNDLE_IDENTIFIER: com.example.CreditCardManager
@@ -26,6 +25,15 @@ targets:
           - README.md
           - project.yml
           - CreditCardManager.entitlements
+          - CreditCardManager.jailed.entitlements
+          - build-jailed.sh
+          - .gitignore
+          - .gitattributes
+          - .git
+          - .github
+          - build
+          - Payload
+          - *.ipa
     info:
       path: CreditCardManager-Info.plist
       properties:

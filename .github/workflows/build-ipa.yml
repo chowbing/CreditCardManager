@@ -1,7 +1,7 @@
 name: Build Unsigned IPA (Jailbroken)
 
 # 越狱设备专用：云端 macOS 自动编译「无签名 IPA」，无需 Apple 账号 / 证书。
-# 触发：push 到 main，或在 Actions 页手动 Run workflow。
+# 触发：push 到 main/master，或在 Actions 页手动 Run workflow。
 # 产物：Artifacts 里的 CreditCardManager-IPA（下载后装到越狱设备）。
 on:
   workflow_dispatch:
@@ -15,11 +15,34 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install XcodeGen
-        run: brew install xcodegen
+      - name: Show toolchain info
+        run: |
+          set -x
+          sw_vers || true
+          xcode-select -p || true
+          xcodebuild -version || true
+          swift --version || true
+          xcrun --show-sdk-path --sdk iphoneos || true
+          which brew && brew --version || true
+
+      - name: Ensure XcodeGen
+        run: |
+          set -x
+          if command -v xcodegen >/dev/null 2>&1; then
+            echo "XcodeGen already installed: $(xcodegen --version)"
+          else
+            brew install xcodegen
+            xcodegen --version
+          fi
+
+      - name: Generate Xcode project
+        run: |
+          set -x
+          xcodegen generate
 
       - name: Build unsigned IPA
         run: |
+          set -x
           chmod +x build-jailed.sh
           ./build-jailed.sh
 
