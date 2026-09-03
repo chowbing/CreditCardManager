@@ -12,7 +12,7 @@ enum DateCycleHelper {
     /// 账单所属年月的「账单日」对应的 Date（账单日超过当月天数则取月末）
     static func statementDate(year: Int, month: Int, statementDay: Int) -> Date {
         let base = calendar.date(from: DateComponents(year: year, month: month)) ?? Date()
-        let range = calendar.range(of: .day, in: .month, for: base) ?? 1...28
+        let range = calendar.range(of: .day, in: .month, for: base) ?? 1..<29
         let day = min(max(statementDay, 1), range.upperBound)
         return calendar.date(from: DateComponents(year: year, month: month, day: day)) ?? Date()
     }
@@ -25,7 +25,7 @@ enum DateCycleHelper {
         var comps = calendar.dateComponents([.year, .month], from: base)
         comps.month = (comps.month ?? month) + dueMonthOffset
         let monthDate = calendar.date(from: DateComponents(year: comps.year, month: comps.month)) ?? base
-        let range = calendar.range(of: .day, in: .month, for: monthDate) ?? 1...31
+        let range = calendar.range(of: .day, in: .month, for: monthDate) ?? 1..<32
         let day = min(max(dueDay, 1), range.upperBound)
         return calendar.date(from: DateComponents(year: comps.year, month: comps.month, day: day)) ?? base
     }

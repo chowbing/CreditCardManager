@@ -11,7 +11,7 @@ struct LockView: View {
             Spacer()
             Image(systemName: "lock.fill")
                 .font(.system(size: 52))
-                .foregroundStyle(.accentColor)
+                .foregroundStyle(Color.accentColor)
             Text("已锁定")
                 .font(.title2.bold())
             if let message {

@@ -29,7 +29,7 @@ extension Statement {
     public var remaining: Decimal { max(total - paid, Decimal(0)) }
 
     /// 实时状态（依据当前日期 + 已还金额推导）
-    public var effectiveStatus: StatementStatus {
+    var effectiveStatus: StatementStatus {
         if paid >= total { return .paid }
         guard let due = dueDate else { return .pending }
         if due < DateCycleHelper.startOfDay(Date()) { return .overdue }
@@ -38,7 +38,7 @@ extension Statement {
     }
 
     /// 持久化的状态（保存时刷新，便于图表/筛选）
-    public var storedStatus: StatementStatus {
+    var storedStatus: StatementStatus {
         StatementStatus(rawValue: Int(statusRaw)) ?? .pending
     }
 

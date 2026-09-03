@@ -43,15 +43,15 @@ struct PersistenceController {
             description.cloudKitContainerOptions = ckOptions
         }
         // 设备锁定时文件不可读（数据静态保护）
-        description.setOption("NSFileProtectionComplete", forKey: NSPersistentStoreFileProtectionKey)
+        description.setOption("NSFileProtectionComplete" as NSString, forKey: NSPersistentStoreFileProtectionKey)
 
-        container.loadPersistentStores { [weak self] _, error in
+        container.loadPersistentStores { [self] _, error in
             if let error {
                 // 未登录 iCloud / 未配置容器时本地存储仍可工作，仅 CloudKit 同步不可用
                 print("Core Data 存储加载提示（本地仍可运行）：\(error.localizedDescription)")
             }
             DispatchQueue.main.async {
-                self?.seedIfEmpty()
+                self.seedIfEmpty()
                 NotificationService.shared.rescheduleAll()
             }
         }
@@ -72,7 +72,7 @@ struct PersistenceController {
         cardEntity.uniquenessConstraints = [["id"]]
 
         let cardAttrs: [NSAttributeDescription] = [
-            attribute("id", .uuidAttributeType, optional: false),
+            attribute("id", .UUIDAttributeType, optional: false),
             attribute("bankName", .stringAttributeType, optional: true),
             attribute("nickname", .stringAttributeType, optional: true),
             attribute("lastFour", .stringAttributeType, optional: true),
@@ -94,7 +94,7 @@ struct PersistenceController {
         stmtEntity.uniquenessConstraints = [["id"]]
 
         let stmtAttrs: [NSAttributeDescription] = [
-            attribute("id", .uuidAttributeType, optional: false),
+            attribute("id", .UUIDAttributeType, optional: false),
             attribute("year", .integer32AttributeType, optional: false, defaultValue: NSNumber(value: 0)),
             attribute("month", .integer32AttributeType, optional: false, defaultValue: NSNumber(value: 0)),
             attribute("statementDate", .dateAttributeType, optional: true),
