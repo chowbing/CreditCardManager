@@ -118,28 +118,39 @@ private struct OverviewRow: View {
 }
 
 // MARK: - 信用卡还款概览（首页新模块）
-/// 按卡展示本月所有账单：勾选切换还款状态，未还显示距还款日剩余天数，底部汇总本月账单总金额。
+/// 列出全部关联卡片：有本月账单的展示金额/状态/剩余天数；无账单的显示 ¥0.00，
+/// 还款日按卡片自身 dueDay 推算。顶部汇总所有卡本月账单总金额（无账单计 0）。
 struct RepaymentOverviewView: View {
     @Environment(\.managedObjectContext) private var context
-    @FetchRequest private var statements: FetchedResults<Statement>
+    @FetchRequest(
+        sortDescriptors: [
+            NSSortDescriptor(key: "order", ascending: true),
+            NSSortDescriptor(key: "createdAt", ascending: true)
+        ]
+    )
+    private var cards: FetchedResults<CreditCard>
 
-    init() {
+    private var yearMonth: (year: Int, month: Int) {
         let comps = Calendar.current.dateComponents([.year, .month], from: Date())
-        let predicate = NSPredicate(format: "year == %d AND month == %d",
-                                     comps.year ?? 0, comps.month ?? 0)
-        _statements = FetchRequest<Statement>(
-            sortDescriptors: [NSSortDescriptor(key: "dueDate", ascending: true)],
-            predicate: predicate
-        )
+        return (comps.year ?? 0, comps.month ?? 0)
+    }
+
+    /// 取卡片当前年月的账单（可能没有）
+    private func statement(for card: CreditCard) -> Statement? {
+        card.statementsArray.first {
+            $0.year == yearMonth.year && $0.month == yearMonth.month
+        }
     }
 
     private var monthTitle: String {
-        let comps = Calendar.current.dateComponents([.month], from: Date())
-        return "信用卡账单 \(comps.month ?? 0)月"
+        "信用卡账单 \(yearMonth.month)月"
     }
 
+    /// 合计：所有卡片本月账单之和（无账单计 0）
     private var totalAmount: Decimal {
-        statements.reduce(Decimal(0)) { $0 + $1.total }
+        cards.reduce(Decimal(0)) { sum, card in
+            sum + (statement(for: card)?.total ?? Decimal(0))
+        }
     }
 
     var body: some View {
@@ -148,8 +159,8 @@ struct RepaymentOverviewView: View {
                 .font(.title3.bold())
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            if statements.isEmpty {
-                Text("本月暂无账单")
+            if cards.isEmpty {
+                Text("尚未添加任何卡片")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .center)
@@ -158,9 +169,13 @@ struct RepaymentOverviewView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12))
             } else {
                 VStack(spacing: 0) {
-                    ForEach(Array(statements.enumerated()), id: \.element.objectID) { idx, s in
-                        RepaymentRow(statement: s, onToggle: { togglePaid(s) })
-                        if idx < statements.count - 1 {
+                    ForEach(Array(cards.enumerated()), id: \.element.objectID) { idx, card in
+                        let stmt = statement(for: card)
+                        RepaymentRow(card: card, statement: stmt, onToggle: {
+                            if let s = stmt { togglePaid(s) }
+                        })
+                        .disabled(stmt == nil)
+                        if idx < cards.count - 1 {
                             Divider().padding(.leading, 56)
                         }
                     }
@@ -191,33 +206,49 @@ struct RepaymentOverviewView: View {
 }
 
 private struct RepaymentRow: View {
-    let statement: Statement
+    let card: CreditCard
+    let statement: Statement?
     let onToggle: () -> Void
 
-    private var isPaid: Bool { statement.paid >= statement.total }
+    private var hasStatement: Bool { statement != nil }
+
+    private var isPaid: Bool {
+        guard let s = statement else { return false }
+        return s.paid >= s.total
+    }
+
+    /// 账单金额：无账单显示 ¥0.00
+    private var amount: Decimal { statement?.total ?? 0 }
+
+    /// 还款日：优先用账单的，否则按卡片 dueDay 推算
+    private var dueDateValue: Date {
+        if let d = statement?.dueDate { return d }
+        let (y, m) = (Calendar.current.component(.year, from: Date()),
+                      Calendar.current.component(.month, from: Date()))
+        return DateCycleHelper.dueDate(year: y, month: m,
+                                       statementDay: Int(card.statementDay),
+                                       dueDay: Int(card.dueDay))
+    }
 
     private var daysLeft: Int {
-        guard let due = statement.dueDate else { return 0 }
         let start = Calendar.current.startOfDay(for: Date())
-        let target = Calendar.current.startOfDay(for: due)
+        let target = Calendar.current.startOfDay(for: dueDateValue)
         return Calendar.current.dateComponents([.day], from: start, to: target).day ?? 0
     }
 
     private var dueDayText: String {
-        if let due = statement.dueDate {
-            return "\(Calendar.current.component(.day, from: due)) 日"
-        }
-        return "\(statement.card?.dueDay ?? 0) 日"
+        let day = Calendar.current.component(.day, from: dueDateValue)
+        return "\(day) 日"
     }
 
     private var dueDateShort: String {
-        guard let due = statement.dueDate else { return "—" }
         let f = DateFormatter()
         f.dateFormat = "M/d"
-        return f.string(from: due)
+        return f.string(from: dueDateValue)
     }
 
     private var daysLeftText: String {
+        if !hasStatement { return "未填账单" }
         if isPaid { return "已还清" }
         let d = daysLeft
         if d < 0 { return "逾期 \(abs(d)) 天" }
@@ -226,6 +257,7 @@ private struct RepaymentRow: View {
     }
 
     private var daysLeftColor: Color {
+        if !hasStatement { return .secondary }
         if isPaid { return .green }
         let d = daysLeft
         if d < 0 { return .red }
@@ -243,10 +275,10 @@ private struct RepaymentRow: View {
 
                 // 卡名 + 尾号
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(statement.card?.displayName ?? "未命名")
+                    Text(card.displayName)
                         .font(.subheadline.bold())
                         .lineLimit(1)
-                    if let last = statement.card?.lastFour, !last.isEmpty {
+                    if let last = card.lastFour, !last.isEmpty {
                         Text(last)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -265,8 +297,8 @@ private struct RepaymentRow: View {
                 }
                 .frame(width: 70)
 
-                // 账单金额
-                Text(statement.total.yuanString)
+                // 账单金额（无账单显示 ¥0.00）
+                Text(amount.yuanString)
                     .font(.subheadline.bold())
                     .frame(width: 80, alignment: .trailing)
 
