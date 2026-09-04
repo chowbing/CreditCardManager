@@ -61,20 +61,32 @@ struct StatementEditorView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("账单所属期") {
-                    HStack {
-                        Picker("年份", selection: $year) {
-                            ForEach(years, id: \.self) { y in
-                                Text("\(y) 年").tag(y)
-                            }
-                        }
-                        Picker("月份", selection: $month) {
-                            ForEach(1...12, id: \.self) { m in
-                                Text("\(m) 月").tag(m)
-                            }
+                Section {
+                    Picker("年份", selection: $year) {
+                        ForEach(years, id: \.self) { y in
+                            Text("\(y) 年").tag(y)
                         }
                     }
-                    .pickerStyle(.segmented)
+                    .pickerStyle(.menu)
+
+                    Picker("月份", selection: $month) {
+                        ForEach(1...12, id: \.self) { m in
+                            Text("\(m) 月").tag(m)
+                        }
+                    }
+                    .pickerStyle(.menu)
+
+                    HStack {
+                        Text("当前所属期")
+                        Spacer()
+                        Text("\(year) 年 \(month) 月")
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+                    }
+                } header: {
+                    Text("账单所属期")
+                } footer: {
+                    Text("所属期 = 这笔账单归到哪个月。例如 9 月 5 日出账、9 月 23 日还款，都算 9 月。点上面「年份 / 月份」两行即可修改。")
                 }
 
                 Section("关键日期") {

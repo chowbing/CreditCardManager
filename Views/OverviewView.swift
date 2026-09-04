@@ -106,7 +106,9 @@ private struct OverviewRow: View {
 
 // MARK: - 信用卡还款概览（首页新模块）
 /// 列出全部关联卡片：有本月账单的展示金额/状态/剩余天数；无账单的显示 ¥0.00，
-/// 还款日按卡片自身 dueDay 推算。顶部汇总所有卡本月账单总金额（无账单计 0）。
+/// 还款日优先取账单记录、无账单时按卡片的账单日/还款日推算（可能落在次月，会标「次月」）。
+/// 排序固定按「还款日」日号升序，即每月从月初的还款日开始。
+/// 顶部汇总：左=月总账单金额，右=本月待还。点整行进入该卡账单，点左侧方框切换已还。
 struct RepaymentOverviewView: View {
     @Environment(\.managedObjectContext) private var context
     @FetchRequest(
@@ -125,10 +127,22 @@ struct RepaymentOverviewView: View {
         return (comps.year ?? 0, comps.month ?? 0)
     }
 
+    /// 当前月 1 号（用于判断还款日是否落在次月）
+    private var monthAnchor: Date {
+        Calendar.current.date(from: DateComponents(year: yearMonth.year, month: yearMonth.month)) ?? Date()
+    }
+
     /// 取卡片当前年月的账单（可能没有）
     private func statement(for card: CreditCard) -> Statement? {
-        card.statementsArray.first {
-            $0.year == yearMonth.year && $0.month == yearMonth.month
+        card.statement(year: yearMonth.year, month: yearMonth.month)
+    }
+
+    /// 按「还款日」升序排列：每月从月初的还款日开始，同日则按卡名兜底，保证顺序稳定
+    private var sortedCards: [CreditCard] {
+        cards.sorted { lhs, rhs in
+            let l = Calendar.current.component(.day, from: lhs.dueDate(year: yearMonth.year, month: yearMonth.month))
+            let r = Calendar.current.component(.day, from: rhs.dueDate(year: yearMonth.year, month: yearMonth.month))
+            return l == r ? lhs.displayName < rhs.displayName : l < r
         }
     }
 
@@ -158,13 +172,19 @@ struct RepaymentOverviewView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12))
             } else {
                 VStack(spacing: 0) {
-                    ForEach(Array(cards.enumerated()), id: \.element.objectID) { idx, card in
+                    ForEach(Array(sortedCards.enumerated()), id: \.element.objectID) { idx, card in
                         let stmt = statement(for: card)
-                        RepaymentRow(card: card, statement: stmt, onToggle: {
-                            if let s = stmt { togglePaid(s) }
-                        })
-                        .disabled(stmt == nil)
-                        if idx < cards.count - 1 {
+                        let due = card.dueDate(year: yearMonth.year, month: yearMonth.month)
+                        RepaymentRow(
+                            card: card,
+                            statement: stmt,
+                            dueDate: due,
+                            isNextMonth: !DateCycleHelper.isSameMonth(due, as: monthAnchor),
+                            onToggle: {
+                                if let s = stmt { togglePaid(s) }
+                            }
+                        )
+                        if idx < sortedCards.count - 1 {
                             Divider().padding(.leading, 56)
                         }
                     }
@@ -232,6 +252,10 @@ private struct SummaryHeaderView: View {
 private struct RepaymentRow: View {
     let card: CreditCard
     let statement: Statement?
+    /// 该卡本月的还款日（有账单用账单的，无账单按卡设置推算，可能是次月）
+    let dueDate: Date
+    /// 还款日是否落在次月（如 9 月账单实际 10/23 到期）
+    let isNextMonth: Bool
     let onToggle: () -> Void
 
     private var hasStatement: Bool { statement != nil }
@@ -244,19 +268,9 @@ private struct RepaymentRow: View {
     /// 账单金额：无账单显示 ¥0.00
     private var amount: Decimal { statement?.total ?? 0 }
 
-    /// 还款日：优先用账单的，否则按卡片 dueDay 推算
-    private var dueDateValue: Date {
-        if let d = statement?.dueDate { return d }
-        let (y, m) = (Calendar.current.component(.year, from: Date()),
-                      Calendar.current.component(.month, from: Date()))
-        return DateCycleHelper.dueDate(year: y, month: m,
-                                       statementDay: Int(card.statementDay),
-                                       dueDay: Int(card.dueDay))
-    }
-
     private var daysLeft: Int {
         let start = Calendar.current.startOfDay(for: Date())
-        let target = Calendar.current.startOfDay(for: dueDateValue)
+        let target = Calendar.current.startOfDay(for: dueDate)
         return Calendar.current.dateComponents([.day], from: start, to: target).day ?? 0
     }
 
@@ -268,7 +282,7 @@ private struct RepaymentRow: View {
     private var dueDateShort: String {
         let f = DateFormatter()
         f.dateFormat = "M/d"
-        return f.string(from: dueDateValue)
+        return f.string(from: dueDate)
     }
 
     private var daysLeftText: String {
@@ -290,53 +304,80 @@ private struct RepaymentRow: View {
     }
 
     var body: some View {
-        Button(action: onToggle) {
-            HStack(spacing: 12) {
-                // 状态勾 / 方框
+        HStack(spacing: 10) {
+            // 左侧勾：切换还款状态（无账单时禁用）
+            Button(action: onToggle) {
                 Image(systemName: isPaid ? "checkmark.square.fill" : "square")
                     .font(.title3)
                     .foregroundStyle(isPaid ? Color.yellow : Color.secondary)
+                    .frame(width: 26, height: 26)
+            }
+            .buttonStyle(.plain)
+            .disabled(!hasStatement)
 
-                // 卡名 + 尾号
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(card.displayName)
-                        .font(.subheadline.bold())
-                        .lineLimit(1)
-                    if let last = card.lastFour, !last.isEmpty {
-                        Text(last)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .frame(minWidth: 60, alignment: .leading)
+            // 右侧整行点击进入该卡片的账单列表。
+            // 与勾选按钮同级而非嵌套，避免二者争抢点击。
+            NavigationLink {
+                StatementsView(card: card)
+            } label: {
+                rowContent
+            }
+        }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 14)
+    }
 
-                Spacer(minLength: 8)
-
-                // 账单日 + 剩余天数
-                VStack(spacing: 2) {
-                    Text(statementDayText).font(.subheadline)
-                    Text(daysLeftText)
-                        .font(.caption)
-                        .foregroundStyle(daysLeftColor)
-                }
-                .frame(width: 70)
-
-                // 账单金额（无账单显示 ¥0.00）
-                Text(amount.yuanString)
+    private var rowContent: some View {
+        HStack(spacing: 10) {
+            // 卡名 + 尾号
+            VStack(alignment: .leading, spacing: 2) {
+                Text(card.displayName)
                     .font(.subheadline.bold())
-                    .frame(width: 80, alignment: .trailing)
+                    .lineLimit(1)
+                if let last = card.lastFour, !last.isEmpty {
+                    Text(last)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(minWidth: 54, alignment: .leading)
 
-                // 还款日期（M/d）
+            Spacer(minLength: 4)
+
+            // 账单日 + 剩余天数
+            VStack(spacing: 2) {
+                Text(statementDayText).font(.subheadline)
+                Text(daysLeftText)
+                    .font(.caption)
+                    .foregroundStyle(daysLeftColor)
+            }
+            .frame(width: 66)
+
+            // 账单金额（无账单显示 ¥0.00）
+            Text(amount.yuanString)
+                .font(.subheadline.bold())
+                .frame(width: 76, alignment: .trailing)
+
+            // 还款日期（M/d）+ 次月标记
+            VStack(spacing: 2) {
                 Text(dueDateShort)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .underline()
-                    .frame(width: 48, alignment: .trailing)
+                if isNextMonth {
+                    Text("次月")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                }
             }
-            .padding(.vertical, 10)
-            .padding(.horizontal, 14)
-            .contentShape(Rectangle())
+            .frame(width: 42, alignment: .trailing)
+
+            Image(systemName: "chevron.right")
+                .font(.caption2)
+                .foregroundStyle(Color.secondary.opacity(0.6))
         }
-        .buttonStyle(.plain)
+        // NavigationLink 会把标签文字渲染成强调色，这里显式还原为主文本色
+        .foregroundStyle(.primary)
+        .contentShape(Rectangle())
     }
 }

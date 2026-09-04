@@ -41,6 +41,23 @@ extension CreditCard {
     public var creditLimitDecimal: Decimal {
         creditLimit?.decimalValue ?? 0
     }
+
+    // MARK: - 账期查询
+
+    /// 指定年月的账单（没有则返回 nil）
+    public func statement(year: Int, month: Int) -> Statement? {
+        statementsArray.first { Int($0.year) == year && Int($0.month) == month }
+    }
+
+    /// 指定年月下的「还款日」
+    /// - 有账单：以账单上记录的还款日为准（用户可在账单里单独调整）
+    /// - 无账单：按卡片的账单日 / 还款日设置推算（可能落在次月）
+    public func dueDate(year: Int, month: Int) -> Date {
+        if let d = statement(year: year, month: month)?.dueDate { return d }
+        return DateCycleHelper.dueDate(year: year, month: month,
+                                       statementDay: Int(statementDay),
+                                       dueDay: Int(dueDay))
+    }
 }
 
 
