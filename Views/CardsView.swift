@@ -12,6 +12,8 @@ struct CardsView: View {
 
     @State private var showEditor = false
     @State private var editingCard: CreditCard?
+    /// 正在快速改色的卡片（非空则弹出颜色面板）
+    @State private var colorTarget: CreditCard?
 
     init() {
         let ctx = PersistenceController.shared.container.viewContext
@@ -22,10 +24,25 @@ struct CardsView: View {
         NavigationStack {
             List {
                 ForEach(cards) { card in
-                    NavigationLink {
-                        StatementsView(card: card)
-                    } label: {
-                        CardRow(card: card)
+                    HStack(spacing: 12) {
+                        // 色块按钮与导航链接同级（而非嵌在链接内部），
+                        // 避免 List 行内 Button 与 NavigationLink 争抢点击。
+                        CardColorChip(hex: card.colorHex ?? CardPalette.colors[0]) {
+                            colorTarget = card
+                        }
+
+                        NavigationLink {
+                            StatementsView(card: card)
+                        } label: {
+                            CardRow(card: card)
+                        }
+                    }
+                    .swipeActions(edge: .leading) {
+                        Button {
+                            editingCard = card
+                            showEditor = true
+                        } label: { Label("编辑", systemImage: "pencil") }
+                        .tint(.blue)
                     }
                     .swipeActions(edge: .trailing) {
                         Button(role: .destructive) {
@@ -56,6 +73,67 @@ struct CardsView: View {
             .sheet(isPresented: $showEditor) {
                 CardEditorView(card: editingCard)
             }
+            .sheet(item: $colorTarget) { card in
+                CardColorSheet(card: card, vm: vm)
+            }
+        }
+    }
+}
+
+// MARK: - 快速改色面板（从列表色块进入）
+private struct CardColorSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let card: CreditCard
+    let vm: CardsViewModel
+    @State private var selected: String
+
+    init(card: CreditCard, vm: CardsViewModel) {
+        self.card = card
+        self.vm = vm
+        _selected = State(initialValue: card.colorHex ?? CardPalette.colors[0])
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 18) {
+                // 实时预览：改色即时反映在这张卡的样子上
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(hex: selected))
+                    .frame(height: 84)
+                    .overlay(alignment: .leading) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(card.displayName)
+                                .font(.headline.bold())
+                                .foregroundStyle(.white)
+                            if let last4 = card.lastFour, !last4.isEmpty {
+                                Text("•••• \(last4)")
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(.white.opacity(0.85))
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                    }
+                    .padding(.horizontal, 16)
+
+                CardColorPicker(selected: $selected)
+                    .padding(.horizontal, 16)
+
+                Spacer(minLength: 0)
+            }
+            .padding(.top, 16)
+            .navigationTitle("卡片颜色")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("保存") {
+                        vm.setColor(card, colorHex: selected)
+                        dismiss()
+                    }
+                }
+            }
         }
     }
 }
@@ -63,10 +141,7 @@ struct CardsView: View {
 private struct CardRow: View {
     let card: CreditCard
     var body: some View {
-        HStack(spacing: 14) {
-            RoundedRectangle(cornerRadius: 8)
-                .fill(card.themeColor)
-                .frame(width: 10)
+        HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(card.displayName).font(.headline)
                 if let bank = card.bankName, !bank.isEmpty {

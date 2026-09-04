@@ -32,20 +32,8 @@ struct OverviewView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
-                    // 本月待还
-                    VStack(spacing: 6) {
-                        Text("本月待还").font(.subheadline).foregroundStyle(.secondary)
-                        Text(monthRemaining.yuanString)
-                            .font(.system(size: 34, weight: .bold, design: .rounded))
-                            .foregroundStyle(monthRemaining > 0 ? .red : .green)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 20)
-                    .background(Color(.secondarySystemBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-
-                    // 信用卡还款概览（按卡展示本月账单 + 合计）
-                    RepaymentOverviewView()
+                    // 顶部汇总（左右两栏）：左=信用卡账单 X月 / 月总账单金额，右=本月待还
+                    RepaymentOverviewView(monthRemaining: monthRemaining)
 
                     if !overdue.isEmpty {
                         SectionCard(title: "⚠️ 逾期账单", color: .red) {
@@ -129,6 +117,9 @@ struct RepaymentOverviewView: View {
     )
     private var cards: FetchedResults<CreditCard>
 
+    /// 本月待还（由首页传入，口径与原来顶部红色大字一致：当月到期且未还清的剩余之和）
+    let monthRemaining: Decimal
+
     private var yearMonth: (year: Int, month: Int) {
         let comps = Calendar.current.dateComponents([.year, .month], from: Date())
         return (comps.year ?? 0, comps.month ?? 0)
@@ -145,11 +136,17 @@ struct RepaymentOverviewView: View {
         "信用卡账单 \(yearMonth.month)月"
     }
 
+    /// 月总账单金额：所有卡片本月账单金额之和（无账单计 0）
+    private var monthTotal: Decimal {
+        cards.reduce(Decimal(0)) { $0 + (statement(for: $1)?.total ?? 0) }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(monthTitle)
-                .font(.title3.bold())
-                .frame(maxWidth: .infinity, alignment: .leading)
+            // 顶部汇总：标题与月总账单金额在左，本月待还在右
+            SummaryHeaderView(monthTitle: monthTitle,
+                              monthTotal: monthTotal,
+                              monthRemaining: monthRemaining)
 
             if cards.isEmpty {
                 Text("尚未添加任何卡片")
@@ -186,6 +183,49 @@ struct RepaymentOverviewView: View {
         s.updatedAt = Date()
         try? context.save()
         NotificationService.shared.rescheduleAll()
+    }
+}
+
+// MARK: - 顶部汇总：左「信用卡账单 X月 / 月总账单金额」，右「本月待还」
+private struct SummaryHeaderView: View {
+    let monthTitle: String
+    let monthTotal: Decimal
+    let monthRemaining: Decimal
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 0) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(monthTitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Text(monthTotal.yuanString)
+                    .font(.system(size: 26, weight: .bold, design: .rounded))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Divider()
+                .frame(height: 40)
+                .padding(.horizontal, 12)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("本月待还")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Text(monthRemaining.yuanString)
+                    .font(.system(size: 26, weight: .bold, design: .rounded))
+                    .foregroundStyle(monthRemaining > 0 ? .red : .green)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 16)
+        .background(Color(.secondarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 }
 

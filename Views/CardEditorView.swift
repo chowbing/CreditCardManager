@@ -71,18 +71,7 @@ struct CardEditorView: View {
                 Section("额度与外观") {
                     TextField("授信额度（可选）", text: $creditLimitText)
                         .keyboardType(.decimalPad)
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 5), spacing: 12) {
-                        ForEach(CardPalette.colors, id: \.self) { hex in
-                            Circle()
-                                .fill(Color(hex: hex))
-                                .frame(width: 32, height: 32)
-                                .overlay(
-                                    Circle().stroke(Color.accentColor, lineWidth: selectedColor == hex ? 3 : 0)
-                                )
-                                .onTapGesture { selectedColor = hex }
-                        }
-                    }
-                    .padding(.vertical, 4)
+                    CardColorPicker(selected: $selectedColor)
                 }
             }
             .navigationTitle(card == nil ? "添加卡片" : "编辑卡片")

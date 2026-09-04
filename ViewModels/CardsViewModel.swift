@@ -43,6 +43,13 @@ final class CardsViewModel: ObservableObject {
         save()
     }
 
+    /// 仅修改卡片颜色（列表内快速改色用）
+    func setColor(_ card: CreditCard, colorHex: String) {
+        card.colorHex = colorHex
+        card.updatedAt = Date()
+        save()
+    }
+
     func delete(_ card: CreditCard) {
         context.delete(card)
         save()
