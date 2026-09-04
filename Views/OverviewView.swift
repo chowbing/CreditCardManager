@@ -130,6 +130,9 @@ struct RepaymentOverviewView: View {
     /// 结算弹窗
     @State private var settlementResult: SettlementResult?
     @State private var showSettlementAlert = false
+    /// 已存档 / 存档失败等「非首次成功」情况的提示，避免「点完没反应」
+    @State private var showArchivedInfo = false
+    @State private var archivedInfoMessage = ""
 
     private var yearMonth: (year: Int, month: Int) { (cycle.year, cycle.month) }
 
@@ -186,10 +189,28 @@ struct RepaymentOverviewView: View {
     @MainActor
     private func trySettle() {
         guard allCleared else { return }
-        let result = MonthlySettlement.run(cards: sortedCards,
-                                           year: cycle.year,
-                                           month: cycle.month)
-        guard let result else { return }
+        let y = cycle.year
+        let m = cycle.month
+        let store = MonthlyArchiveStore.shared
+
+        // 本月已存档：通常是上一轮已结清、但账期还没前进（或被历史测试残留的存档卡住）。
+        // 这里不再静默返回，而是给出提示，并补排一次自动进位，避免「卡在当前月、再点无反应」。
+        if store.isArchived(year: y, month: m) {
+            if cycle.rolloverAt == nil {
+                CycleManager.shared.scheduleAutoRollover(minutes: MonthlySettlement.defaultRolloverMinutes)
+            }
+            archivedInfoMessage = "本月（\(y)年\(m)月）账单已结清并存档，账期将在 5 分钟后自动前进到下一月（还款日日号不变、仅月份 +1）。"
+            showArchivedInfo = true
+            return
+        }
+
+        guard let result = MonthlySettlement.run(cards: sortedCards,
+                                                 year: y,
+                                                 month: m) else {
+            archivedInfoMessage = "本月账单已结清，但存档写入失败，请稍后重试。"
+            showArchivedInfo = true
+            return
+        }
         settlementResult = result
         showSettlementAlert = true
     }
@@ -254,6 +275,12 @@ struct RepaymentOverviewView: View {
             }
         } message: { result in
             Text(settlementMessage(result))
+        }
+        .alert("提示", isPresented: $showArchivedInfo) {
+            Button("立即前进到下一月") { CycleManager.shared.goToNextMonth() }
+            Button("好", role: .cancel) {}
+        } message: {
+            Text(archivedInfoMessage)
         }
     }
 

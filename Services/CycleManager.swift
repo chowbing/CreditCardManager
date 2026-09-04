@@ -24,6 +24,9 @@ final class CycleManager: ObservableObject {
     @Published private(set) var rolloverAt: Date?
 
     private let ud = UserDefaults.standard
+    /// 常驻定时器：每隔一段时间检查一次是否到点进位。
+    /// 不依赖任何页面是否打开，确保「5 分钟后账期前进」一定发生。
+    private var rolloverTimer: Timer?
 
     private init() {
         let now = Self.naturalCycle
@@ -41,6 +44,11 @@ final class CycleManager: ObservableObject {
         }
         rolloverAt = ud.object(forKey: Key.rolloverAt) as? Date
         persist()
+
+        // 启动常驻检查：到点自动进位（与 App 回前台 / 倒计时横幅互补）
+        rolloverTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+            self?.performRolloverIfDue()
+        }
     }
 
     // MARK: - 索引工具：把年月压成一个可比较的整数
