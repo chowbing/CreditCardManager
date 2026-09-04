@@ -26,7 +26,7 @@ struct StatementEditorView: View {
 
     private let years: [Int]
 
-    init(statement: Statement?, card: CreditCard) {
+    init(statement: Statement? = nil, card: CreditCard, preferredYear: Int? = nil, preferredMonth: Int? = nil) {
         self.statement = statement
         self.card = card
         let ctx = PersistenceController.shared.container.viewContext
@@ -47,15 +47,27 @@ struct StatementEditorView: View {
             _note = State(initialValue: s.note ?? "")
             _reminderOn = State(initialValue: s.reminderOn)
         } else {
-            _year = State(initialValue: cy)
-            _month = State(initialValue: cm)
-            _statementDate = State(initialValue: DateCycleHelper.statementDate(year: cy, month: cm, statementDay: Int(card.statementDay)))
-            _dueDate = State(initialValue: DateCycleHelper.dueDate(year: cy, month: cm, dueDay: Int(card.dueDay)))
+            // 新建账单：默认归属「当前真实月份」；若调用方指定了 preferred 年月
+            //（如首页便捷录入「当前展示账期」），则以指定年月为归属，确保跳月后
+            // 点卡片直接落在正确的下一期。
+            let y = preferredYear ?? cy
+            let m = preferredMonth ?? cm
+            _year = State(initialValue: y)
+            _month = State(initialValue: m)
+            _statementDate = State(initialValue: DateCycleHelper.statementDate(year: y, month: m, statementDay: Int(card.statementDay)))
+            _dueDate = State(initialValue: DateCycleHelper.dueDate(year: y, month: m, dueDay: Int(card.dueDay)))
             _totalText = State(initialValue: "")
             _paidText = State(initialValue: "")
             _note = State(initialValue: "")
             _reminderOn = State(initialValue: true)
         }
+    }
+
+    /// 便捷入口：直接针对某个账期（year/month）打开编辑器。
+    /// 若该期已有账单则编辑它；否则以该期为归属新建一笔。
+    convenience init(card: CreditCard, year: Int, month: Int) {
+        let existing = card.statement(year: year, month: month)
+        self.init(statement: existing, card: card, preferredYear: year, preferredMonth: month)
     }
 
     var body: some View {

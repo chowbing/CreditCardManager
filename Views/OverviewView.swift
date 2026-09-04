@@ -251,7 +251,9 @@ struct RepaymentOverviewView: View {
                             isNextMonth: !DateCycleHelper.isSameMonth(due, as: monthAnchor),
                             onToggle: {
                                 if let s = stmt { togglePaid(s) }
-                            }
+                            },
+                            year: yearMonth.year,
+                            month: yearMonth.month
                         )
                         if idx < sortedCards.count - 1 {
                             Divider().padding(.leading, 56)
@@ -382,6 +384,11 @@ private struct RepaymentRow: View {
     /// 还款日是否落在次月（如 9 月账单实际 10/23 到期）
     let isNextMonth: Bool
     let onToggle: () -> Void
+    /// 当前展示账期的年/月：便捷录入时直接落到这一期；跳月后即为下一期
+    let year: Int
+    let month: Int
+
+    @State private var showEditor = false
 
     private var hasStatement: Bool { statement != nil }
 
@@ -440,13 +447,29 @@ private struct RepaymentRow: View {
             .buttonStyle(.plain)
             .disabled(!hasStatement)
 
-            // 右侧整行点击进入该卡片的账单列表。
-            // 与勾选按钮同级而非嵌套，避免二者争抢点击。
-            NavigationLink {
-                StatementsView(card: card)
+            // 主体：点击直接打开「当前账期月份」的账单编辑器（便捷录入）。
+            // 跳月后（例如进入 10 月）点卡片即落在 10 月这一期，直接填金额。
+            Button {
+                showEditor = true
             } label: {
                 rowContent
             }
+            .buttonStyle(.plain)
+            .sheet(isPresented: $showEditor) {
+                StatementEditorView(card: card, year: year, month: month)
+            }
+
+            // 右侧「明细」：进入该卡账单列表（保留的原有方式）
+            NavigationLink {
+                StatementsView(card: card)
+            } label: {
+                HStack(spacing: 2) {
+                    Text("明细").font(.caption)
+                    Image(systemName: "chevron.right").font(.caption2)
+                }
+                .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
         }
         .padding(.vertical, 6)
         .padding(.horizontal, 14)
@@ -496,10 +519,6 @@ private struct RepaymentRow: View {
                 }
             }
             .frame(width: 42, alignment: .trailing)
-
-            Image(systemName: "chevron.right")
-                .font(.caption2)
-                .foregroundStyle(Color.secondary.opacity(0.6))
         }
         // NavigationLink 会把标签文字渲染成强调色，这里显式还原为主文本色
         .foregroundStyle(.primary)
