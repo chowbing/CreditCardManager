@@ -162,6 +162,8 @@ struct SettingsView: View {
                         icloudStatus = "受限制"
                     case .couldNotDetermine:
                         icloudStatus = "未知"
+                    case .temporarilyUnavailable:
+                        icloudStatus = "iCloud 暂时不可用"
                     @unknown default:
                         icloudStatus = "未知"
                     }

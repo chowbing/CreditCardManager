@@ -48,7 +48,9 @@ private struct BackupPayload: Codable {
 
 enum DataTransfer {
     /// 收集全部数据为可编码的载荷
-    static func exportPayload(context: NSManagedObjectContext) -> BackupPayload {
+    /// 注：BackupPayload 为文件私有类型，故本方法必须声明为 fileprivate，
+    /// 否则 internal 方法返回 private 类型会触发 "method must be declared fileprivate" 编译错误。
+    fileprivate static func exportPayload(context: NSManagedObjectContext) -> BackupPayload {
         let cardReq = CreditCard.fetchRequest()
         let cards = (try? context.fetch(cardReq)) ?? []
         let stmtReq = Statement.fetchRequest()
