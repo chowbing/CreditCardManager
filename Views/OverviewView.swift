@@ -4,6 +4,8 @@ import UIKit
 
 struct OverviewView: View {
     @Environment(\.managedObjectContext) private var context
+    /// 当前展示的账期（可能在全部还清后自动前移到下一月）
+    @ObservedObject private var cycle = CycleManager.shared
     @FetchRequest(
         sortDescriptors: [NSSortDescriptor(key: "dueDate", ascending: true)]
     )
@@ -12,7 +14,7 @@ struct OverviewView: View {
     private var all: [Statement] { Array(statements) }
 
     private var thisMonthDue: [Statement] {
-        all.filter { $0.effectiveStatus != .paid && DateCycleHelper.isSameMonth($0.dueDate, as: Date()) }
+        all.filter { $0.effectiveStatus != .paid && DateCycleHelper.isSameMonth($0.dueDate, as: cycle.anchorDate) }
     }
     private var overdue: [Statement] {
         all.filter { $0.effectiveStatus == .overdue }
@@ -119,18 +121,20 @@ struct RepaymentOverviewView: View {
     )
     private var cards: FetchedResults<CreditCard>
 
+    /// 当前展示的账期（全部还清后会自动前移到下一月）
+    @ObservedObject private var cycle = CycleManager.shared
+
     /// 本月待还（由首页传入，口径与原来顶部红色大字一致：当月到期且未还清的剩余之和）
     let monthRemaining: Decimal
 
-    private var yearMonth: (year: Int, month: Int) {
-        let comps = Calendar.current.dateComponents([.year, .month], from: Date())
-        return (comps.year ?? 0, comps.month ?? 0)
-    }
+    /// 结算弹窗
+    @State private var settlementResult: SettlementResult?
+    @State private var showSettlementAlert = false
+
+    private var yearMonth: (year: Int, month: Int) { (cycle.year, cycle.month) }
 
     /// 当前月 1 号（用于判断还款日是否落在次月）
-    private var monthAnchor: Date {
-        Calendar.current.date(from: DateComponents(year: yearMonth.year, month: yearMonth.month)) ?? Date()
-    }
+    private var monthAnchor: Date { cycle.anchorDate }
 
     /// 取卡片当前年月的账单（可能没有）
     private func statement(for card: CreditCard) -> Statement? {
@@ -147,7 +151,12 @@ struct RepaymentOverviewView: View {
     }
 
     private var monthTitle: String {
-        "信用卡账单 \(yearMonth.month)月"
+        let n = CycleManager.naturalCycle
+        // 跨年时把年份带上，避免只看月份产生歧义
+        if yearMonth.year != n.year {
+            return "信用卡账单 \(yearMonth.year)年\(yearMonth.month)月"
+        }
+        return "信用卡账单 \(yearMonth.month)月"
     }
 
     /// 月总账单金额：所有卡片本月账单金额之和（无账单计 0）
@@ -155,12 +164,51 @@ struct RepaymentOverviewView: View {
         cards.reduce(Decimal(0)) { $0 + (statement(for: $1)?.total ?? 0) }
     }
 
+    // MARK: - 月度结算（全部还清 → 自动存档）
+
+    /// 本期填了金额的账单（金额 0 / 没填的卡不算，不阻塞结算）
+    private var filledStatements: [Statement] {
+        sortedCards.compactMap { card in
+            guard let s = card.statement(year: cycle.year, month: cycle.month), s.total > 0 else {
+                return nil
+            }
+            return s
+        }
+    }
+
+    /// 本期所有填了金额的账单是否都已还清
+    private var allCleared: Bool {
+        guard !filledStatements.isEmpty else { return false }
+        return filledStatements.allSatisfy { $0.paid >= $0.total }
+    }
+
+    /// 尝试结算。内部有多重防重，重复调用是安全的。
+    @MainActor
+    private func trySettle() {
+        guard allCleared else { return }
+        let result = MonthlySettlement.run(cards: sortedCards,
+                                           year: cycle.year,
+                                           month: cycle.month)
+        guard let result else { return }
+        settlementResult = result
+        showSettlementAlert = true
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            // 账期自动切换倒计时（全部还清、安排了切换后才出现）
+            if cycle.rolloverAt != nil {
+                RolloverBanner(cycle: cycle)
+            }
+
             // 顶部汇总：标题与月总账单金额在左，本月待还在右
             SummaryHeaderView(monthTitle: monthTitle,
                               monthTotal: monthTotal,
-                              monthRemaining: monthRemaining)
+                              monthRemaining: monthRemaining,
+                              isOnNaturalMonth: cycle.isOnNaturalMonth,
+                              onPrevious: { cycle.goToPreviousMonth() },
+                              onNext: { cycle.goToNextMonth() },
+                              onReset: { cycle.goToNaturalMonth() })
 
             if cards.isEmpty {
                 Text("尚未添加任何卡片")
@@ -193,6 +241,29 @@ struct RepaymentOverviewView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             }
         }
+        // 勾完最后一笔、本期全部还清时触发结算
+        .onChange(of: allCleared) { cleared in
+            if cleared { trySettle() }
+        }
+        // 进页面时也查一次：覆盖「通过账单编辑页把金额改成已还清」的情况
+        .task { trySettle() }
+        .alert("本月账单已结清", isPresented: $showSettlementAlert, presenting: settlementResult) { result in
+            Button("好") {}
+            Button("立即切到 \(result.nextMonth) 月") {
+                CycleManager.shared.goToNextMonth()
+            }
+        } message: { result in
+            Text(settlementMessage(result))
+        }
+    }
+
+    private func settlementMessage(_ r: SettlementResult) -> String {
+        var text = "\(r.archive.title)账单已存档：共 \(r.archive.rowCount) 张卡，合计 \(r.archive.total)。\n"
+        text += r.imageSaved
+            ? "账单截图已保存到相册。\n"
+            : "截图保存失败，请检查相册权限。\n"
+        text += "账期将在 5 分钟后自动切换到 \(r.nextYear) 年 \(r.nextMonth) 月，还款日的日期不变、仅月份 +1。之后点卡片即可录入下一期金额。"
+        return text
     }
 
     /// 切换单张账单的还款状态：未还 → 设为已还；已还 → 设为未还
@@ -211,13 +282,40 @@ private struct SummaryHeaderView: View {
     let monthTitle: String
     let monthTotal: Decimal
     let monthRemaining: Decimal
+    let isOnNaturalMonth: Bool
+    let onPrevious: () -> Void
+    let onNext: () -> Void
+    let onReset: () -> Void
 
     var body: some View {
         HStack(alignment: .center, spacing: 0) {
             VStack(alignment: .leading, spacing: 6) {
-                Text(monthTitle)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                // 标题两侧加了前后翻月的箭头，方便回看历史账期 / 提前进入下一期
+                HStack(spacing: 6) {
+                    Button(action: onPrevious) {
+                        Image(systemName: "chevron.left")
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+
+                    Text(monthTitle)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+
+                    Button(action: onNext) {
+                        Image(systemName: "chevron.right")
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+
+                    if !isOnNaturalMonth {
+                        Button("回本月", action: onReset)
+                            .font(.caption2)
+                            .foregroundStyle(.blue)
+                    }
+                }
                 Text(monthTotal.yuanString)
                     .font(.system(size: 26, weight: .bold, design: .rounded))
                     .foregroundStyle(.primary)
@@ -379,5 +477,48 @@ private struct RepaymentRow: View {
         // NavigationLink 会把标签文字渲染成强调色，这里显式还原为主文本色
         .foregroundStyle(.primary)
         .contentShape(Rectangle())
+    }
+}
+
+// MARK: - 账期切换倒计时横幅
+/// 全部还清并安排切换后才出现；每秒刷新倒计时，
+/// 到点自动调用 CycleManager 进位（还款日日号不变、月份 +1），进位后外层 if 会让横幅自动消失。
+private struct RolloverBanner: View {
+    @ObservedObject var cycle: CycleManager
+    private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
+    private var countdownText: String {
+        guard let remain = cycle.pendingRolloverRemaining, remain > 0 else {
+            return "即将切换…"
+        }
+        let total = Int(remain)
+        let m = total / 60
+        let s = total % 60
+        return m > 0 ? "\(m) 分 \(s) 秒" : "\(s) 秒"
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "arrow.clockwise.circle.fill")
+                .font(.title3)
+                .foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("本月账单已结清，账期切换倒计时")
+                    .font(.caption.bold())
+                    .foregroundStyle(.primary)
+                Text("将于 \(countdownText)后自动切换到下一月，还款日日期不变、仅月份 +1")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 6)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(Color.orange.opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .onReceive(timer) { _ in
+            // 到点自动进位；进位后 rolloverAt 变 nil，外层 if 会让本横幅消失
+            _ = cycle.performRolloverIfDue()
+        }
     }
 }

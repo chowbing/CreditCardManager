@@ -38,6 +38,28 @@ final class NotificationService {
         if statements.contains(where: { $0.effectiveStatus == .overdue }) {
             scheduleDailyOverdueSummary()
         }
+
+        // rescheduleAll 会清空所有待发通知，这里补回尚未触发的「账期切换」提醒
+        CycleManager.shared.rescheduleRolloverNoticeIfNeeded()
+    }
+
+    // MARK: - 账期自动切换
+
+    /// 预约一条「账期将切换到 X 年 X 月」的提醒
+    func scheduleRolloverNotice(year: Int, month: Int, seconds: TimeInterval) {
+        let content = UNMutableNotificationContent()
+        content.title = "账期已切换到 \(month) 月"
+        content.body = "上月账单已结清并存档。现在可以点卡片录入 \(year) 年 \(month) 月的新一期账单金额了。"
+        content.sound = .default
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: max(seconds, 1), repeats: false)
+        center.add(UNNotificationRequest(identifier: "cycle-rollover",
+                                         content: content,
+                                         trigger: trigger))
+    }
+
+    /// 切换已经发生，立刻发一条告知
+    func notifyCycleSwitched(year: Int, month: Int) {
+        scheduleRolloverNotice(year: year, month: month, seconds: 1)
     }
 
     private func schedule(title: String, body: String, at date: Date, id: String) {
