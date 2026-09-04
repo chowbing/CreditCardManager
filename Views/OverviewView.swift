@@ -220,9 +220,9 @@ private struct RepaymentRow: View {
         return Calendar.current.dateComponents([.day], from: start, to: target).day ?? 0
     }
 
-    private var dueDayText: String {
-        let day = Calendar.current.component(.day, from: dueDateValue)
-        return "\(day) 日"
+    /// 中间列顶部：账单日（卡的 statementDay），避免与末尾还款日重复显示
+    private var statementDayText: String {
+        "\(card.statementDay) 日"
     }
 
     private var dueDateShort: String {
@@ -252,8 +252,8 @@ private struct RepaymentRow: View {
     var body: some View {
         Button(action: onToggle) {
             HStack(spacing: 12) {
-                // 状态勾 / 圆
-                Image(systemName: isPaid ? "checkmark.circle.fill" : "circle")
+                // 状态勾 / 方框
+                Image(systemName: isPaid ? "checkmark.square.fill" : "square")
                     .font(.title3)
                     .foregroundStyle(isPaid ? Color.yellow : Color.secondary)
 
@@ -272,9 +272,9 @@ private struct RepaymentRow: View {
 
                 Spacer(minLength: 8)
 
-                // 还款日 + 剩余天数
+                // 账单日 + 剩余天数
                 VStack(spacing: 2) {
-                    Text(dueDayText).font(.subheadline)
+                    Text(statementDayText).font(.subheadline)
                     Text(daysLeftText)
                         .font(.caption)
                         .foregroundStyle(daysLeftColor)

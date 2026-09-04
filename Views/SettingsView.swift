@@ -1,5 +1,7 @@
 import SwiftUI
 import CloudKit
+import UIKit
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @AppStorage("appLockEnabled") private var appLockEnabled = false
@@ -11,6 +13,13 @@ struct SettingsView: View {
     }()
     @State private var icloudStatus: String = "检测中…"
     @State private var showClearConfirm = false
+
+    @Environment(\.managedObjectContext) private var context
+    @State private var showShare = false
+    @State private var shareItems: [Any] = []
+    @State private var showImporter = false
+    @State private var resultMessage: String?
+    @State private var showResultAlert = false
 
     var body: some View {
         NavigationStack {
@@ -61,6 +70,25 @@ struct SettingsView: View {
                 } header: { Text("数据管理") }
 
                 Section {
+                    Button {
+                        do {
+                            let url = try DataTransfer.writeExportFile(context: context)
+                            shareItems = [url]
+                            showShare = true
+                        } catch {
+                            resultMessage = "导出失败：\(error.localizedDescription)"
+                            showResultAlert = true
+                        }
+                    } label: { Label("导出数据", systemImage: "square.and.arrow.up") }
+
+                    Button {
+                        showImporter = true
+                    } label: { Label("导入数据", systemImage: "square.and.arrow.down") }
+                    Text("导出为 JSON 备份文件，可经 AirDrop / 文件 App / 微信等传到另一台手机后导入；导入按卡片与账单的唯一 ID 合并，不会重复。")
+                        .font(.caption).foregroundStyle(.secondary)
+                } header: { Text("数据备份（跨设备迁移）") }
+
+                Section {
                     LabeledContent("应用名称", value: "信用卡账单管理")
                     LabeledContent("最低系统", value: "iOS 16.0")
                     if let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
@@ -77,6 +105,40 @@ struct SettingsView: View {
                 }
             } message: {
                 Text("将删除全部信用卡与账单数据，且无法恢复。")
+            }
+            .sheet(isPresented: $showShare) {
+                ActivityView(activityItems: shareItems)
+            }
+            .fileImporter(isPresented: $showImporter,
+                          allowedContentTypes: [.json],
+                          allowsMultipleSelection: false) { result in
+                switch result {
+                case .success(let urls):
+                    guard let url = urls.first else { return }
+                    guard url.startAccessingSecurityScopedResource() else {
+                        resultMessage = "无法访问所选文件"
+                        showResultAlert = true
+                        return
+                    }
+                    defer { url.stopAccessingSecurityScopedResource() }
+                    do {
+                        let data = try Data(contentsOf: url)
+                        let (c, s) = try DataTransfer.importJSON(data, context: context)
+                        NotificationService.shared.rescheduleAll()
+                        resultMessage = "导入成功：共 \(c) 张卡、\(s) 笔账单"
+                    } catch {
+                        resultMessage = "导入失败：\(error.localizedDescription)"
+                    }
+                    showResultAlert = true
+                case .failure(let error):
+                    resultMessage = "选择文件失败：\(error.localizedDescription)"
+                    showResultAlert = true
+                }
+            }
+            .alert("提示", isPresented: $showResultAlert) {
+                Button("好", role: .cancel) {}
+            } message: {
+                Text(resultMessage ?? "")
             }
         }
     }
@@ -106,4 +168,13 @@ struct SettingsView: View {
                 }
             }
     }
+}
+
+// MARK: - 系统分享面板（导出备份文件用）
+private struct ActivityView: UIViewControllerRepresentable {
+    let activityItems: [Any]
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+    func updateUIViewController(_ vc: UIActivityViewController, context: Context) {}
 }
