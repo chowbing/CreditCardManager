@@ -65,7 +65,7 @@ struct StatementEditorView: View {
 
     /// 便捷入口：直接针对某个账期（year/month）打开编辑器。
     /// 若该期已有账单则编辑它；否则以该期为归属新建一笔。
-    convenience init(card: CreditCard, year: Int, month: Int) {
+    init(card: CreditCard, year: Int, month: Int) {
         let existing = card.statement(year: year, month: month)
         self.init(statement: existing, card: card, preferredYear: year, preferredMonth: month)
     }

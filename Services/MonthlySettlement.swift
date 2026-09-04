@@ -15,7 +15,8 @@ struct SettlementResult {
 enum MonthlySettlement {
 
     /// 默认延迟多少分钟切换到下一账期
-    static let defaultRolloverMinutes = 5
+    /// nonisolated：默认参数表达式在调用方上下文求值，需非隔离常量
+    nonisolated static let defaultRolloverMinutes = 5
 
     /// 执行结算。已经存档过的月份会直接返回 nil，防止重复触发。
     static func run(cards: [CreditCard],
