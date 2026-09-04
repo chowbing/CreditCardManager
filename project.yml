@@ -42,6 +42,7 @@ targets:
           UILaunchScreenGeneration: true
         NSFaceIDUsageDescription: "用于应用锁，保护您的账单隐私"
         NSPhotoLibraryAddUsageDescription: "用于将月度已结清账单存档截图保存到相册"
+        UIFileSharingEnabled: true
         CFBundleDocumentTypes:
           - CFBundleTypeName: "信用卡账单备份"
             CFBundleTypeRole: Viewer

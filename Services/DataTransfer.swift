@@ -122,6 +122,21 @@ enum DataTransfer {
         return url
     }
 
+    /// 写入 App 的 Documents 目录（开启 UIFileSharingEnabled 后在「文件 App →
+    /// 本 App 目录」可见）。既可供分享面板 AirDrop/微信传出，也会留在本地，
+    /// 便于另一台设备把备份文件放进该目录后由 App 内列表直接导入。
+    /// 这是无签名 IPA 上唯一可靠的导入通道（系统选文件框 / 打开方式均不可用）。
+    static func writeExportToDocuments(context: NSManagedObjectContext) throws -> URL {
+        let data = try exportJSON(context: context)
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyyMMdd-HHmmss"
+        let name = "信用卡账单备份-\(fmt.string(from: Date())).json"
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let url = docs.appendingPathComponent(name)
+        try data.write(to: url, options: .atomic)
+        return url
+    }
+
     /// 导入（按 id upsert）。已存在覆盖、不存在新建；账单按 cardId 关联卡片。
     /// 导入后自动刷新状态（paid/total → status）并保存。
     @discardableResult

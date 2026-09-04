@@ -1,7 +1,6 @@
 import SwiftUI
 import CloudKit
 import UIKit
-import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @AppStorage("appLockEnabled") private var appLockEnabled = false
@@ -17,7 +16,7 @@ struct SettingsView: View {
     @Environment(\.managedObjectContext) private var context
     @State private var showShare = false
     @State private var shareItems: [Any] = []
-    @State private var showImporter = false
+    @State private var showLocalImport = false
     @State private var resultMessage: String?
     @State private var showResultAlert = false
 
@@ -72,7 +71,7 @@ struct SettingsView: View {
                 Section {
                     Button {
                         do {
-                            let url = try DataTransfer.writeExportFile(context: context)
+                            let url = try DataTransfer.writeExportToDocuments(context: context)
                             shareItems = [url]
                             showShare = true
                         } catch {
@@ -82,9 +81,9 @@ struct SettingsView: View {
                     } label: { Label("导出数据", systemImage: "square.and.arrow.up") }
 
                     Button {
-                        showImporter = true
+                        showLocalImport = true
                     } label: { Label("导入数据", systemImage: "square.and.arrow.down") }
-                    Text("导出为 JSON 备份文件，可经 AirDrop / 文件 App / 微信等传到另一台手机后导入；导入按卡片与账单的唯一 ID 合并，不会重复。")
+                    Text("导出会把备份(.json)写入本 App 共享目录，并弹出分享面板供你 AirDrop / 微信传出。另一台手机收到后，用「文件 App」把 .json 放进「iPhone → 信用卡账单」目录，再点「导入数据」在列表里选文件即可。导入按卡片与账单的唯一 ID 合并，不会重复。")
                         .font(.caption).foregroundStyle(.secondary)
                 } header: { Text("数据备份（跨设备迁移）") }
 
@@ -109,31 +108,8 @@ struct SettingsView: View {
             .sheet(isPresented: $showShare) {
                 ActivityView(activityItems: shareItems)
             }
-            .fileImporter(isPresented: $showImporter,
-                          allowedContentTypes: [.item],
-                          allowsMultipleSelection: false) { result in
-                switch result {
-                case .success(let urls):
-                    guard let url = urls.first else { return }
-                    guard url.startAccessingSecurityScopedResource() else {
-                        resultMessage = "无法访问所选文件"
-                        showResultAlert = true
-                        return
-                    }
-                    defer { url.stopAccessingSecurityScopedResource() }
-                    do {
-                        let data = try Data(contentsOf: url)
-                        let (c, s) = try DataTransfer.importJSON(data, context: context)
-                        NotificationService.shared.rescheduleAll()
-                        resultMessage = "导入成功：共 \(c) 张卡、\(s) 笔账单"
-                    } catch {
-                        resultMessage = "导入失败：\(error.localizedDescription)"
-                    }
-                    showResultAlert = true
-                case .failure(let error):
-                    resultMessage = "选择文件失败：\(error.localizedDescription)"
-                    showResultAlert = true
-                }
+            .sheet(isPresented: $showLocalImport) {
+                LocalImportView()
             }
             .alert("提示", isPresented: $showResultAlert) {
                 Button("好", role: .cancel) {}
