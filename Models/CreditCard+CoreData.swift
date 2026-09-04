@@ -51,11 +51,10 @@ extension CreditCard {
 
     /// 指定年月下的「还款日」
     /// - 有账单：以账单上记录的还款日为准（用户可在账单里单独调整）
-    /// - 无账单：按卡片的账单日 / 还款日设置推算（可能落在次月）
+    /// - 无账单：按卡片的「还款日几号」推算，落在账期所在月（固定还款日模型，不跨月）
     public func dueDate(year: Int, month: Int) -> Date {
         if let d = statement(year: year, month: month)?.dueDate { return d }
         return DateCycleHelper.dueDate(year: year, month: month,
-                                       statementDay: Int(statementDay),
                                        dueDay: Int(dueDay))
     }
 }

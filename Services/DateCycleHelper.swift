@@ -18,16 +18,14 @@ enum DateCycleHelper {
     }
 
     /// 「还款日」对应的 Date。
-    /// 规则：若还款日 <= 账单日，则视为次月还款日；否则为同月。
-    static func dueDate(year: Int, month: Int, statementDay: Int, dueDay: Int) -> Date {
-        let base = statementDate(year: year, month: month, statementDay: statementDay)
-        let dueMonthOffset = (dueDay <= statementDay) ? 1 : 0
-        var comps = calendar.dateComponents([.year, .month], from: base)
-        comps.month = (comps.month ?? month) + dueMonthOffset
-        let monthDate = calendar.date(from: DateComponents(year: comps.year, month: comps.month)) ?? base
-        let range = calendar.range(of: .day, in: .month, for: monthDate) ?? 1..<32
+    /// 固定模型：还款日 = 账期所在月的「还款日几号」，不再跨月。
+    /// 与「全部还清后账期进下一月、日期固定只变月份」的需求一致：
+    /// 账期进 10 月后，所有卡都显示 10 月还款日（不再有卡被算到下月）。
+    static func dueDate(year: Int, month: Int, dueDay: Int) -> Date {
+        let base = calendar.date(from: DateComponents(year: year, month: month)) ?? Date()
+        let range = calendar.range(of: .day, in: .month, for: base) ?? 1..<32
         let day = min(max(dueDay, 1), range.upperBound)
-        return calendar.date(from: DateComponents(year: comps.year, month: comps.month, day: day)) ?? base
+        return calendar.date(from: DateComponents(year: year, month: month, day: day)) ?? base
     }
 
     /// 是否逾期（已过期且未全额还清）

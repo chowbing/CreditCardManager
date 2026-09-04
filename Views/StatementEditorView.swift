@@ -50,7 +50,7 @@ struct StatementEditorView: View {
             _year = State(initialValue: cy)
             _month = State(initialValue: cm)
             _statementDate = State(initialValue: DateCycleHelper.statementDate(year: cy, month: cm, statementDay: Int(card.statementDay)))
-            _dueDate = State(initialValue: DateCycleHelper.dueDate(year: cy, month: cm, statementDay: Int(card.statementDay), dueDay: Int(card.dueDay)))
+            _dueDate = State(initialValue: DateCycleHelper.dueDate(year: cy, month: cm, dueDay: Int(card.dueDay)))
             _totalText = State(initialValue: "")
             _paidText = State(initialValue: "")
             _note = State(initialValue: "")

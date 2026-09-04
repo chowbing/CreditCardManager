@@ -164,7 +164,7 @@ struct PersistenceController {
 
         let stmtsVM = StatementsViewModel(context: ctx)
         let sd = DateCycleHelper.statementDate(year: y, month: m, statementDay: 5)
-        let dd = DateCycleHelper.dueDate(year: y, month: m, statementDay: 5, dueDay: 23)
+        let dd = DateCycleHelper.dueDate(year: y, month: m, dueDay: 23)
         stmtsVM.addStatement(card: card, year: y, month: m,
                              statementDate: sd, dueDate: dd,
                              total: Decimal(string: "3280.50")!, paid: Decimal(0),
@@ -175,7 +175,7 @@ struct PersistenceController {
         let py = Calendar.current.component(.year, from: prev)
         let pm = Calendar.current.component(.month, from: prev)
         let psd = DateCycleHelper.statementDate(year: py, month: pm, statementDay: 5)
-        let pdd = DateCycleHelper.dueDate(year: py, month: pm, statementDay: 5, dueDay: 23)
+        let pdd = DateCycleHelper.dueDate(year: py, month: pm, dueDay: 23)
         stmtsVM.addStatement(card: card, year: py, month: pm,
                              statementDate: psd, dueDate: pdd,
                              total: Decimal(string: "5120.00")!, paid: Decimal(string: "5120.00")!,
