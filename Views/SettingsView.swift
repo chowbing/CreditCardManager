@@ -110,7 +110,7 @@ struct SettingsView: View {
                 ActivityView(activityItems: shareItems)
             }
             .fileImporter(isPresented: $showImporter,
-                          allowedContentTypes: [.json, .data],
+                          allowedContentTypes: [.item],
                           allowsMultipleSelection: false) { result in
                 switch result {
                 case .success(let urls):

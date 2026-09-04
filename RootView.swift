@@ -11,6 +11,7 @@ final class LockState: ObservableObject {
 struct RootView: View {
     @AppStorage("appLockEnabled") private var appLockEnabled = false
     @StateObject private var lockState = LockState.shared
+    @State private var importMessage: String? = nil
 
     var body: some View {
         ZStack {
@@ -22,9 +23,28 @@ struct RootView: View {
         }
         .onAppear {
             if appLockEnabled { lockState.isLocked = true }
+            // 冷启动：openURL 可能在 RootView 挂载前就触发，补读缓存的导入结果
+            if let m = ImportResultStore.shared.message {
+                importMessage = m
+                ImportResultStore.shared.message = nil
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             if appLockEnabled { lockState.isLocked = true }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .dataImportResult)) { note in
+            if let msg = note.userInfo?["message"] as? String {
+                importMessage = msg
+                ImportResultStore.shared.message = nil
+            }
+        }
+        .alert("导入结果", isPresented: Binding(
+            get: { importMessage != nil },
+            set: { if !$0 { importMessage = nil } }
+        )) {
+            Button("好", role: .cancel) { importMessage = nil }
+        } message: {
+            Text(importMessage ?? "")
         }
     }
 }
