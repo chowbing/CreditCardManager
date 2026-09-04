@@ -28,10 +28,11 @@ struct OverviewView: View {
         thisMonthDue.reduce(Decimal(0)) { $0 + $1.remaining }
     }
 
+    // 注意：不再自带 NavigationStack —— 由 MainTabView 统一提供，
+    // 这样再次点击底部「概览」Tab 才能把导航栈弹回本页。
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 16) {
+        ScrollView {
+            VStack(spacing: 16) {
                     // 顶部汇总（左右两栏）：左=信用卡账单 X月 / 月总账单金额，右=本月待还
                     RepaymentOverviewView(monthRemaining: monthRemaining)
 
@@ -58,10 +59,9 @@ struct OverviewView: View {
                             .padding()
                     }
                 }
-            .padding()
+                .padding()
+            }
         }
-    }
-}
 }
 
 private struct SectionCard<Content: View>: View {

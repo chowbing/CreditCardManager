@@ -20,9 +20,9 @@ struct CardsView: View {
         _vm = StateObject(wrappedValue: CardsViewModel(context: ctx))
     }
 
+    // 注意：NavigationStack 由 MainTabView 统一提供（点 Tab 可弹回根页）
     var body: some View {
-        NavigationStack {
-            List {
+        List {
                 ForEach(cards) { card in
                     HStack(spacing: 12) {
                         // 色块按钮与导航链接同级（而非嵌在链接内部），
@@ -76,7 +76,6 @@ struct CardsView: View {
             .sheet(item: $colorTarget) { card in
                 CardColorSheet(card: card, vm: vm)
             }
-        }
     }
 }
 

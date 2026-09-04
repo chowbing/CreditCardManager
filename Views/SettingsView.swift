@@ -21,9 +21,9 @@ struct SettingsView: View {
     @State private var resultMessage: String?
     @State private var showResultAlert = false
 
+    // 注意：NavigationStack 由 MainTabView 统一提供（点 Tab 可弹回根页）
     var body: some View {
-        NavigationStack {
-            Form {
+        Form {
                 Section {
                     Toggle("应用锁（Face ID / 密码）", isOn: $appLockEnabled)
                         .onChange(of: appLockEnabled) { newValue in
@@ -140,7 +140,6 @@ struct SettingsView: View {
             } message: {
                 Text(resultMessage ?? "")
             }
-        }
     }
 
     private func checkCloudKit() {

@@ -29,17 +29,69 @@ struct RootView: View {
     }
 }
 
+/// 底部 Tab
+enum AppTab: Hashable {
+    case overview, cards, statistics, settings
+}
+
 struct MainTabView: View {
+    @State private var selection: AppTab = .overview
+
+    // 每个 Tab 各自的导航路径。交给外层统一持有，
+    // 才能在「再次点击已选中的 Tab」时把它弹回根页面。
+    @State private var overviewPath = NavigationPath()
+    @State private var cardsPath = NavigationPath()
+    @State private var statisticsPath = NavigationPath()
+    @State private var settingsPath = NavigationPath()
+
     var body: some View {
-        TabView {
-            OverviewView()
-                .tabItem { Label("概览", systemImage: "house.fill") }
-            CardsView()
-                .tabItem { Label("卡片", systemImage: "creditcard.fill") }
-            StatisticsView()
-                .tabItem { Label("统计", systemImage: "chart.bar.fill") }
-            SettingsView()
-                .tabItem { Label("设置", systemImage: "gearshape.fill") }
+        TabView(selection: tabBinding) {
+            NavigationStack(path: $overviewPath) {
+                OverviewView()
+            }
+            .tabItem { Label("概览", systemImage: "house.fill") }
+            .tag(AppTab.overview)
+
+            NavigationStack(path: $cardsPath) {
+                CardsView()
+            }
+            .tabItem { Label("卡片", systemImage: "creditcard.fill") }
+            .tag(AppTab.cards)
+
+            NavigationStack(path: $statisticsPath) {
+                StatisticsView()
+            }
+            .tabItem { Label("统计", systemImage: "chart.bar.fill") }
+            .tag(AppTab.statistics)
+
+            NavigationStack(path: $settingsPath) {
+                SettingsView()
+            }
+            .tabItem { Label("设置", systemImage: "gearshape.fill") }
+            .tag(AppTab.settings)
+        }
+    }
+
+    /// 自定义 Binding：点击「当前已选中」的 Tab 时，TabView 仍会写入同一个值，
+    /// 借此把该 Tab 的导航栈清空 —— 效果等同连点左上角 Back 回到主页。
+    private var tabBinding: Binding<AppTab> {
+        Binding(
+            get: { selection },
+            set: { newValue in
+                if newValue == selection {
+                    popToRoot(newValue)
+                }
+                selection = newValue
+            }
+        )
+    }
+
+    private func popToRoot(_ tab: AppTab) {
+        switch tab {
+        case .overview:   overviewPath = NavigationPath()
+        case .cards:      cardsPath = NavigationPath()
+        case .statistics: statisticsPath = NavigationPath()
+        case .settings:   settingsPath = NavigationPath()
         }
     }
 }
